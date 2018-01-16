@@ -191,7 +191,7 @@ class Variables(object):
 class Population(object):
     def __init__(self,elements = None,n = 50):
 
-        self.elements = elements if elements is not None else [Ensemble() for i in range(n)]
+        self.elements = elements if elements is not None else [Variables() for i in range(n)]
 
 
     def __getitem__(self,key):
@@ -211,15 +211,15 @@ class Population(object):
 
 
 
-    def evaluate(self):
-        fitnesses = [(i,element.evaluate()) for i,element in enumerate(self)]
+    def evaluate(self,sales):
+        fitnesses = [(i,element.evaluate(sales)) for i,element in enumerate(self)]
         indices,fitnesses = zip(*sorted(fitnesses,key = lambda x : x[1],reverse = True))
         return indices,fitnesses
 
 
 
-    def selection(self,top = 0.5):
-        indices,fitnesses = self.evaluate()
+    def selection(self,sales,top = 0.5):
+        indices,fitnesses = self.evaluate(sales)
         n = int(top*len(fitnesses))
         return indices[:n]
 
@@ -244,8 +244,50 @@ class Population(object):
             d.mutate()
 
 
-    def evolve(self,top = 0.25):
-        indices = self.selection(top = top)
-        self.crossover(indices)
-        self.mutate()
+    def evolve(self,sales,top = 0.25,n_generations = 20,last_selection = True):
+        n_fittest = int(top*len(self))
+        offsprings = len(list(itertools.combinations(range(n_fittest),2)))
+        print("- Generations {}".format(len(self)))
+        print("- Fittest : {}".format(n_fittest))
+        print("- Offsprings : {}".format(offsprings))
+
+        all_fitnesses = [self.evaluate(sales)[1]]
+
+        for generation in tqdm(range(n_generations)):
+
+            indices = self.selection(sales,top)
+            self.crossover(indices)
+            self.mutate()
+            
+            indices,fitnesses = self.evaluate(sales)
+            all_fitnesses.append(fitnesses)
+            
+        self._plot_fitnesses(all_fitnesses)
         
+        if last_selection:
+            indices = self.selection(sales,top)
+    
+        return Population(elements = self[indices])
+
+    
+    
+    def _plot_fitnesses(self,fitnesses):
+
+        sups = []
+        infs = []
+        means = []
+        for step in fitnesses:
+            sups.append(np.max(step))
+            infs.append(np.min(step))
+            means.append(np.mean(step))
+            
+        plt.figure(figsize=(10,6))
+        plt.plot(means)
+        plt.fill_between(range(len(means)),sups,infs, alpha = 0.2)
+        plt.xlabel('# Generation')
+        plt.ylabel('Fitness')
+        plt.ylim([0.0,1.0])
+        plt.legend()
+        plt.show()
+
+
